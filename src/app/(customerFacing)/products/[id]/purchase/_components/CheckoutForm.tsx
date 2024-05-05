@@ -79,15 +79,6 @@ export function CheckoutForm({ product, clientSecret }: CheckoutProps) {
   );
 }
 
-type AddressStateProps = {
-  line1: string;
-  line2?: string;
-  city: string;
-  postal_code: string;
-  state: string;
-  country: string;
-};
-
 function Form({
   priceInCents,
   productId,

@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -26,6 +20,8 @@ model Product{
   updatedAt DateTime @updatedAt
   orders Order[]
   downloadVerification DownloadVerification[]
+
+  discountCodes DiscountCode[]
 }
 
 model User{
@@ -46,6 +42,8 @@ model Order{
   productId String
   user User @relation(fields: [userId] , references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId],references: [id] , onDelete: Restrict)
+  discountCodeId String?
+  discountCode DiscountCode? @relation(fields: [discountCodeId] , references: [id], onDelete: Restrict)
 }
 
 model DownloadVerification{
@@ -54,4 +52,26 @@ model DownloadVerification{
   createdAt DateTime @default(now())
   productId String
   product Product @relation(fields: [productId] ,references: [id], onDelete: Cascade)
+}
+
+model DiscountCode {
+  id String @id @default(uuid())
+  code String @unique
+  discountAmount Int
+  discountType DiscountCodeType
+  uses Int @default(0)
+  isActive Boolean @default(true)
+  allProducts Boolean @default(false)
+  limit Int?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+
+  // many to many relations
+  products Product[]
+  orders Order[]
+}
+
+enum DiscountCodeType {
+  PERCENTAGE
+  FIXE
 }
