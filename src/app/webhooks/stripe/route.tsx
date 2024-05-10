@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
   if (event.type === "charge.succeeded") {
     const charge = event.data.object;
     const productId = charge.metadata.productId;
+    const discountCodeId = charge.metadata.discountCodeId;
     const email = charge.billing_details.email!;
     const pricePaidInCents = charge.amount;
 
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
 
     const userFields = {
       email,
-      orders: { create: { productId, pricePaidInCents } },
+      orders: { create: { productId, pricePaidInCents, discountCodeId } },
     };
 
     const {
@@ -41,6 +42,15 @@ export async function POST(req: NextRequest) {
       update: userFields,
       select: { orders: { orderBy: { createdAt: "desc" }, take: 1 } },
     });
+
+    if (discountCodeId != null) {
+      db.discountCode.update({
+        where: { id: discountCodeId },
+        data: {
+          uses: { increment: 1 },
+        },
+      });
+    }
 
     const downloadVerification = await db.downloadVerification.create({
       data: {

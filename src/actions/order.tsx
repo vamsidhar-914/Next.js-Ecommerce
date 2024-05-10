@@ -2,11 +2,17 @@
 
 import db from "@/db/db";
 import OrderHistoryEmail from "@/email/OrderHistory";
+import {
+  getDiscountCodeAmount,
+  usableDiscountCode,
+} from "@/lib/discountCodeHelper";
 import { Resend } from "resend";
+import Stripe from "stripe";
 import { z } from "zod";
 
 const emailSchema = z.string().email();
-const resend = new Resend(process.env.RESEND_PRIVATE_KEY);
+const resend = new Resend(process.env.RESEND_PRIVATE_KEY as string);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
 export async function emailOrderHistory(
   prevState: unknown,
@@ -77,4 +83,62 @@ export async function emailOrderHistory(
     message:
       "Check your email to view your order history and download your products",
   };
+}
+
+export async function createPaymentIntent(
+  email: string,
+  productId: string,
+  discountCodeId?: string
+) {
+  const product = await db.product.findUnique({
+    where: {
+      id: productId,
+    },
+  });
+  if (product == null) return { error: "unexpected Error" };
+  const discountCode =
+    discountCodeId == null
+      ? null
+      : await db.discountCode.findUnique({
+          where: {
+            id: discountCodeId,
+            ...usableDiscountCode(product.id),
+          },
+        });
+
+  if (discountCode == null && discountCodeId != null) {
+    return { error: "coupon has expired" };
+  }
+  const existingOrder = await db.order.findFirst({
+    where: { user: { email }, productId },
+    select: { id: true },
+  });
+
+  if (existingOrder != null) {
+    return {
+      error:
+        "you have already purchased this product. try downloading it from the my orders page",
+    };
+  }
+
+  const amount =
+    discountCode == null
+      ? product.priceInCents
+      : getDiscountCodeAmount(discountCode, product.priceInCents);
+
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount,
+    currency: "USD",
+    description: "software development services",
+    metadata: {
+      productId: product.id,
+      discountCodeId: discountCode?.id || null,
+    },
+  });
+
+  if (paymentIntent.client_secret == null) {
+    return { error: "unknown error occured" };
+  }
+
+  return { clientSecret: paymentIntent.client_secret };
 }
